@@ -7,6 +7,7 @@ v = [0 for i in xrange(16)]
 stack=[]
 pc=0x200
 mem = [0 for i in xrange(4096)]
+I=0
 
 def load_rom(fname):
 	try:
@@ -40,6 +41,7 @@ def getnib(inst):
 
 def exec_inst():
 	global pc
+	global I
 	inst = get_inst()
 	nnn = getnnn(inst)
 	x = getx(inst)
@@ -148,8 +150,7 @@ def exec_inst():
 		v[x] = ord(urandom) & kk
 		return 0
 	if inst & 0xf000 == 0xd000:
-		pc = v[0]+nnn
-		return 0
+		pass
 	return 
 
 def main():
