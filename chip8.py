@@ -1,6 +1,6 @@
 #!/usr/bin/python
-# TODO : implement timers
 from time import sleep
+from os import urandom
 from pygame import display, HWSURFACE, DOUBLEBUF, Color, draw, key
 import pygame
 import sys
@@ -36,6 +36,7 @@ key_map = {
 	ord('e'):0xe,
 	ord('f'):0xf
 }
+DT=0
 
 key_inv_map = {v: k for k, v in key_map.iteritems()}
 
@@ -90,12 +91,14 @@ def getnib(inst):
 def exec_inst():
 	global pc
 	global I
+	global DT
 	inst = get_inst()
 	nnn = getnnn(inst)
 	x = getx(inst)
 	y = gety(inst)
 	kk = getbyte(inst)
 	nib = getnib(inst)
+	if DT>0:DT-=1
 	if inst == 0x00e0:
 		pc+=2
 		for i in xrange(32):
@@ -210,7 +213,7 @@ def exec_inst():
 		return 0
 	if inst & 0xf000 == 0xc000:
 		pc += 2
-		v[x] = ord(urandom) & kk
+		v[x] = ord(urandom(1)) & kk
 		return 0
 	if inst & 0xf000 == 0xd000:
 		pc+=2
@@ -225,18 +228,23 @@ def exec_inst():
 		return 0
 	if inst & 0xf0ff == 0xe09e:
 		pc+=2
+		pygame.event.get()
 		key_stat = key.get_pressed()
-		if key_stat[key_inv_map[v[x]]]:
+		if key_stat[key_inv_map[v[x]]]==1:
 			pc+=2
 		return 0
 	if inst & 0xf0ff == 0xe0a1:
-		pc+=2
+		pc+=4
+		key_stat=[]
+		pygame.event.get()
 		key_stat = key.get_pressed()
-		if not key_stat[key_inv_map[v[x]]]:
-			pc+=2
+		if key_stat[key_inv_map[v[x]]]==1:
+			pc-=2	
 		return 0
 	if inst & 0xf0ff == 0xf007:
 		pc+=2
+		v[x]=DT/2
+		return 0
 	if inst & 0xf0ff == 0xf00a:
 		pc+=2
 		f=0
@@ -255,9 +263,12 @@ def exec_inst():
 				break
 		return 0
 	if inst & 0xf0ff == 0xf015:
-		pass
+		pc+=2
+		DT=v[x]*2
+		return 0
 	if inst & 0xf0ff == 0xf018:
-		pass
+		pc+=2
+		return 0
 	if inst & 0xf0ff == 0xf01e:
 		pc+=2
 		I+=v[x]
@@ -300,6 +311,7 @@ def main():
 			break
 		except Exception as e:
 			print e
+			break
 		if exit_flag:
 			break
 
