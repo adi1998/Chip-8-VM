@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# TODO : implement display
+# TODO : implement display, keyboard, timers
 
 import sys
 
@@ -8,6 +8,11 @@ stack=[]
 pc=0x200
 mem = [0 for i in xrange(4096)]
 I=0
+# to be mapped to a GUI
+display = [[0 for i in xrange(64)] for j in xrange(32)]
+
+class PCOutOfBoundsError(Exception):
+	pass
 
 def load_rom(fname):
 	try:
@@ -48,6 +53,7 @@ def exec_inst():
 	y = gety(inst)
 	kk = getbyte(inst)
 	nib = getnib(inst)
+	print hex(inst)[2:],hex(pc)[2:]
 	if inst == 0x00e0:
 		print "display cleared"
 		pc+=2
@@ -57,6 +63,8 @@ def exec_inst():
 		return 0
 	if inst & 0xf000 == 0x0000:
 		pc = nnn
+		if pc<0x200:
+			raise PCOutOfBoundsError
 		return 0
 	if inst & 0xf000 == 0x1000:
 		pc = nnn
@@ -150,8 +158,17 @@ def exec_inst():
 		v[x] = ord(urandom) & kk
 		return 0
 	if inst & 0xf000 == 0xd000:
-		pass
-	return 
+		pc+=2
+		sprite = [map(int,bin(i)[2:].rjust(8,"0")) for i in mem[I:I+nib]]
+		v[0xf] = 0
+		for i in xrange(nib):
+			for j in xrange(8):
+				if display[(v[y]+i) % 32][(v[x]+j) % 64] == sprite[i][j]:
+					v[0xf]=1 
+				display[(v[y]+i) % 32][(v[x]+j) % 64] ^= sprite[i][j]
+		return 0
+	
+	return 1
 
 def main():
 	
