@@ -1,18 +1,56 @@
 #!/usr/bin/python
-# TODO : implement display, keyboard, timers
-
+# TODO : implement timers
+from time import sleep
+from pygame import display, HWSURFACE, DOUBLEBUF, Color, draw, key
+import pygame
 import sys
+
+scale_factor=10
+
+display.init()
+s = display.set_mode(((64*scale_factor),(32*scale_factor)), HWSURFACE | DOUBLEBUF, 8)
+s.fill(Color(0,0,0,255))
+display.flip()
 
 v = [0 for i in xrange(16)]
 stack=[]
 pc=0x200
 mem = [0 for i in xrange(4096)]
 I=0
-# to be mapped to a GUI
-display = [[0 for i in xrange(64)] for j in xrange(32)]
+disp = [[0 for i in xrange(64)] for j in xrange(32)]
+key_map = {
+	49:1,
+	50:2,
+	51:3,
+	52:4,
+	53:5,
+	54:6,
+	55:7,
+	56:8,
+	57:9,
+	58:0,
+	ord('a'):0xa,
+	ord('b'):0xb,
+	ord('c'):0xc,
+	ord('d'):0xd,
+	ord('e'):0xe,
+	ord('f'):0xf
+}
+
+key_inv_map = {v: k for k, v in key_map.iteritems()}
 
 class PCOutOfBoundsError(Exception):
 	pass
+colormap = {
+	    0: Color(0, 0, 0, 255),
+	    1: Color(255, 255, 255, 255)
+	}
+def update_display():
+	
+	for i in xrange(32):
+		for j in xrange(64):
+			draw.rect(s,colormap[disp[i][j]],(j*scale_factor,i*scale_factor,scale_factor,scale_factor))
+	display.flip()
 
 def load_rom(fname):
 	try:
@@ -22,6 +60,11 @@ def load_rom(fname):
 	except:	
 		print "Error importing CHIP-8 rom \"{}\".".format(fname)
 		exit(2)
+
+	font = open("hexsprites",'rb').read()
+
+	for i,val in enumerate(font):
+		mem[i]=ord(val)
 
 	for i in xrange(len(rom)):
 		mem[i + 0x200] = rom[i]
@@ -53,10 +96,13 @@ def exec_inst():
 	y = gety(inst)
 	kk = getbyte(inst)
 	nib = getnib(inst)
-	print hex(inst)[2:],hex(pc)[2:]
 	if inst == 0x00e0:
-		print "display cleared"
 		pc+=2
+		for i in xrange(32):
+			disp[i]=[0 for j in xrange(64)]
+		update_display()
+		display.flip()
+		
 		return 0
 	if inst == 0x00ee:
 		pc=stack.pop()
@@ -76,7 +122,7 @@ def exec_inst():
 		return 0
 	if inst & 0xf000 == 0x3000:
 		pc+=2
-		if v[x] == kkf:
+		if v[x] == kk:
 			pc+=2
 		return 0
 	if inst & 0xf000 == 0x4000:
@@ -136,6 +182,15 @@ def exec_inst():
 		v[0xf] = v[y] & 0x1
 		v[y] = v[x] = v[y] >> 1
 		return 0
+	if inst & 0xf00f == 0x8007:
+		pc+=2
+		if v[x] < v[y]: 
+			v[0xf] = 1
+		else: 
+			v[0xf] = 0
+		v[x] = v[y]-v[x]
+		v[x] &= 0xff
+		return 0
 	if inst & 0xf00f == 0x800e:
 		pc+=2
 		v[0xf] = v[y] & 0x1
@@ -163,11 +218,70 @@ def exec_inst():
 		v[0xf] = 0
 		for i in xrange(nib):
 			for j in xrange(8):
-				if display[(v[y]+i) % 32][(v[x]+j) % 64] == sprite[i][j]:
+				if disp[(v[y]+i) % 32][(v[x]+j) % 64] == sprite[i][j]:
 					v[0xf]=1 
-				display[(v[y]+i) % 32][(v[x]+j) % 64] ^= sprite[i][j]
+				disp[(v[y]+i) % 32][(v[x]+j) % 64] ^= sprite[i][j]
+		update_display()
 		return 0
-	
+	if inst & 0xf0ff == 0xe09e:
+		pc+=2
+		key_stat = key.get_pressed()
+		if key_stat[key_inv_map[v[x]]]:
+			pc+=2
+		return 0
+	if inst & 0xf0ff == 0xe0a1:
+		pc+=2
+		key_stat = key.get_pressed()
+		if not key_stat[key_inv_map[v[x]]]:
+			pc+=2
+		return 0
+	if inst & 0xf0ff == 0xf007:
+		pc+=2
+	if inst & 0xf0ff == 0xf00a:
+		pc+=2
+		f=0
+		while True:
+			for event in pygame.event.get():
+				if event.type == pygame.KEYDOWN:
+					temp = key.get_pressed()
+					for i in key_inv_map:
+						if temp[key_inv_map[i]]:
+							v[x]=i
+							f=1 
+							break
+					if f==1:
+						break
+			if f==1:
+				break
+		return 0
+	if inst & 0xf0ff == 0xf015:
+		pass
+	if inst & 0xf0ff == 0xf018:
+		pass
+	if inst & 0xf0ff == 0xf01e:
+		pc+=2
+		I+=v[x]
+		return 0
+	if inst & 0xf0ff == 0xf029:
+		pc+=2
+		I = v[x]*5
+		return 0
+	if inst & 0xf0ff == 0xf033:
+		pc+=2
+		mem[I] = v[x]/100
+		mem[I+1] = v[x]/10 % 10
+		mem[I+2] = v[x] % 10
+		return 0
+	if inst & 0xf0ff == 0xf055:
+		pc+=2
+		for i in xrange(x+1):
+			mem[I+i] = v[i]
+		return 0
+	if inst & 0xf0ff == 0xf065:
+		pc+=2
+		for i in xrange(x+1):
+			v[i] = mem[I+i]
+		return 0
 	return 1
 
 def main():
@@ -179,7 +293,13 @@ def main():
 	load_rom(sys.argv[1])
 	
 	while True: # main loop
-		exit_flag = exec_inst()	
+		try:
+			exit_flag = exec_inst()	
+		except PCOutOfBoundsError as p:
+			print p
+			break
+		except Exception as e:
+			print e
 		if exit_flag:
 			break
 
