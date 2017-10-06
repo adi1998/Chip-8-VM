@@ -29,12 +29,12 @@ key_map = {
 	56:8,
 	57:9,
 	58:0,
-	ord('a'):0xa,
-	ord('b'):0xb,
-	ord('c'):0xc,
-	ord('d'):0xd,
-	ord('e'):0xe,
-	ord('f'):0xf
+	97:0xa,
+	98:0xb,
+	99:0xc,
+	100:0xd,
+	101:0xe,
+	102:0xf
 }
 DT=0
 
@@ -98,22 +98,19 @@ def exec_inst():
 	y = gety(inst)
 	kk = getbyte(inst)
 	nib = getnib(inst)
-	if DT>0:DT-=1
 	if inst == 0x00e0:
 		pc+=2
 		for i in xrange(32):
 			disp[i]=[0 for j in xrange(64)]
 		update_display()
-		display.flip()
-		
 		return 0
 	if inst == 0x00ee:
 		pc=stack.pop()
 		return 0
 	if inst & 0xf000 == 0x0000:
+		pc+=2
+		stack.append(pc)
 		pc = nnn
-		if pc<0x200:
-			raise PCOutOfBoundsError
 		return 0
 	if inst & 0xf000 == 0x1000:
 		pc = nnn
@@ -140,11 +137,12 @@ def exec_inst():
 		return 0
 	if inst & 0xf000 == 0x6000:
 		pc+=2
-		v[x] = kk
+		v[x] = kk & 0xff
 		return 0
 	if inst & 0xf000 == 0x7000:
 		pc+=2
 		v[x] += kk
+		v[x] = v[x] & 0xff
 		return 0
 	if inst & 0xf00f == 0x8000:
 		pc+=2
@@ -213,7 +211,7 @@ def exec_inst():
 		return 0
 	if inst & 0xf000 == 0xc000:
 		pc += 2
-		v[x] = ord(urandom(1)) & kk
+		v[x] = (ord(urandom(1)) & kk) & 0xff
 		return 0
 	if inst & 0xf000 == 0xd000:
 		pc+=2
@@ -221,7 +219,7 @@ def exec_inst():
 		v[0xf] = 0
 		for i in xrange(nib):
 			for j in xrange(8):
-				if disp[(v[y]+i) % 32][(v[x]+j) % 64] == sprite[i][j]:
+				if disp[(v[y]+i) % 32][(v[x]+j) % 64] == sprite[i][j] == 1:
 					v[0xf]=1 
 				disp[(v[y]+i) % 32][(v[x]+j) % 64] ^= sprite[i][j]
 		update_display()
@@ -243,7 +241,7 @@ def exec_inst():
 		return 0
 	if inst & 0xf0ff == 0xf007:
 		pc+=2
-		v[x]=DT/2
+		v[x] = DT & 0xff
 		return 0
 	if inst & 0xf0ff == 0xf00a:
 		pc+=2
@@ -264,7 +262,7 @@ def exec_inst():
 		return 0
 	if inst & 0xf0ff == 0xf015:
 		pc+=2
-		DT=v[x]*2
+		DT=v[x]
 		return 0
 	if inst & 0xf0ff == 0xf018:
 		pc+=2
@@ -291,24 +289,38 @@ def exec_inst():
 	if inst & 0xf0ff == 0xf065:
 		pc+=2
 		for i in xrange(x+1):
-			v[i] = mem[I+i]
+			v[i] = mem[I+i] & 0xff
 		return 0
 	return 1
 
 def main():
-	
+	global DT
 	if len(sys.argv)==1:
 		print "usage: ./chip8.py <chip-8-rom>"
 		exit(1)
-	
+
+	pygame.init()
 	load_rom(sys.argv[1])
+	last_ticks = pygame.time.get_ticks()
 	
 	while True: # main loop
 		try:
+
+			for event in pygame.event.get():
+				if event.type == pygame.QUIT:
+					display.quit()
+					pygame.quit()
+					exit()
+
 			exit_flag = exec_inst()	
-		except PCOutOfBoundsError as p:
-			print p
-			break
+
+			now_ticks = pygame.time.get_ticks()
+			if now_ticks - last_ticks > 16:
+				diff = now_ticks - last_ticks
+				ticks_passed = diff / 16
+				DT = max(0,DT-ticks_passed)
+				last_ticks = now_ticks - diff % 16
+
 		except Exception as e:
 			print e
 			break
