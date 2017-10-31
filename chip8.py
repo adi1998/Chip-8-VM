@@ -1,9 +1,11 @@
 #!/usr/bin/python
+# a new immulator
 from time import sleep
 from os import urandom
 from pygame import display, HWSURFACE, DOUBLEBUF, Color, draw, key
 import pygame
 import sys
+from math import factorial
 
 scale_factor=10
 
@@ -329,5 +331,6 @@ def main():
 
 if __name__ == "__main__":
 	main()
-
+	
+	
 exit(0)
